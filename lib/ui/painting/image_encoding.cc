@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,11 +25,7 @@ using tonic::DartInvoke;
 using tonic::DartPersistentValue;
 using tonic::ToDart;
 
-#ifdef ERROR
-#undef ERROR
-#endif
-
-namespace blink {
+namespace flutter {
 namespace {
 
 // This must be kept in sync with the enum in painting.dart
@@ -235,4 +231,4 @@ Dart_Handle EncodeImage(CanvasImage* canvas_image,
   return Dart_Null();
 }
 
-}  // namespace blink
+}  // namespace flutter

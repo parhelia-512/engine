@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -58,8 +58,6 @@ TEST(MatrixDecomposition, Translate) {
 }
 
 TEST(MatrixDecomposition, Combination) {
-  SkMatrix44 matrix = SkMatrix44::I();
-
   const auto rotation = M_PI_4;
   const auto scale = 5;
   const auto translate = 125.0;

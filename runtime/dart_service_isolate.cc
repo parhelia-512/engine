@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "flutter/runtime/dart_service_isolate.h"
 
 #include <string.h>
+#include <algorithm>
 
 #include "flutter/fml/logging.h"
 #include "flutter/runtime/embedder_resources.h"
@@ -26,7 +27,7 @@
     return false;                           \
   }
 
-namespace blink {
+namespace flutter {
 namespace {
 
 static Dart_LibraryTagHandler g_embedder_tag_handler;
@@ -47,17 +48,82 @@ const uint8_t* GetSymbol(Dart_NativeFunction native_function) {
 
 }  // namespace
 
+std::mutex DartServiceIsolate::callbacks_mutex_;
+
+FML_GUARDED_BY(DartServiceIsolate::callbacks_mutex_)
+std::set<std::unique_ptr<DartServiceIsolate::ObservatoryServerStateCallback>>
+    DartServiceIsolate::callbacks_;
+
 void DartServiceIsolate::NotifyServerState(Dart_NativeArguments args) {
   Dart_Handle exception = nullptr;
   std::string uri =
       tonic::DartConverter<std::string>::FromArguments(args, 0, exception);
-  if (!exception) {
-    observatory_uri_ = uri;
+
+  if (exception) {
+    return;
+  }
+
+  observatory_uri_ = uri;
+
+  // Collect callbacks to fire in a separate collection and invoke them outside
+  // the lock.
+  std::vector<DartServiceIsolate::ObservatoryServerStateCallback>
+      callbacks_to_fire;
+  {
+    std::lock_guard<std::mutex> lock(callbacks_mutex_);
+    for (auto& callback : callbacks_) {
+      callbacks_to_fire.push_back(*callback.get());
+    }
+  }
+
+  for (auto callback_to_fire : callbacks_to_fire) {
+    callback_to_fire(uri);
   }
 }
 
 std::string DartServiceIsolate::GetObservatoryUri() {
   return observatory_uri_;
+}
+
+DartServiceIsolate::CallbackHandle DartServiceIsolate::AddServerStatusCallback(
+    DartServiceIsolate::ObservatoryServerStateCallback callback) {
+  if (!callback) {
+    return 0;
+  }
+
+  auto callback_pointer =
+      std::make_unique<DartServiceIsolate::ObservatoryServerStateCallback>(
+          callback);
+
+  auto handle = reinterpret_cast<CallbackHandle>(callback_pointer.get());
+
+  {
+    std::lock_guard<std::mutex> lock(callbacks_mutex_);
+    callbacks_.insert(std::move(callback_pointer));
+  }
+
+  if (!observatory_uri_.empty()) {
+    callback(observatory_uri_);
+  }
+
+  return handle;
+}
+
+bool DartServiceIsolate::RemoveServerStatusCallback(
+    CallbackHandle callback_handle) {
+  std::lock_guard<std::mutex> lock(callbacks_mutex_);
+  auto found = std::find_if(
+      callbacks_.begin(), callbacks_.end(),
+      [callback_handle](const auto& item) {
+        return reinterpret_cast<CallbackHandle>(item.get()) == callback_handle;
+      });
+
+  if (found == callbacks_.end()) {
+    return false;
+  }
+
+  callbacks_.erase(found);
+  return true;
 }
 
 void DartServiceIsolate::Shutdown(Dart_NativeArguments args) {
@@ -68,6 +134,7 @@ bool DartServiceIsolate::Startup(std::string server_ip,
                                  intptr_t server_port,
                                  Dart_LibraryTagHandler embedder_tag_handler,
                                  bool disable_origin_check,
+                                 bool disable_service_auth_codes,
                                  char** error) {
   Dart_Isolate isolate = Dart_CurrentIsolate();
   FML_CHECK(isolate);
@@ -130,7 +197,11 @@ bool DartServiceIsolate::Startup(std::string server_ip,
       Dart_SetField(library, Dart_NewStringFromCString("_originCheckDisabled"),
                     Dart_NewBoolean(disable_origin_check));
   SHUTDOWN_ON_ERROR(result);
+  result =
+      Dart_SetField(library, Dart_NewStringFromCString("_authCodesDisabled"),
+                    Dart_NewBoolean(disable_service_auth_codes));
+  SHUTDOWN_ON_ERROR(result);
   return true;
 }
 
-}  // namespace blink
+}  // namespace flutter

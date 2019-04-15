@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,16 +8,13 @@
 #include <unordered_map>
 #include "flutter/flow/matrix_decomposition.h"
 #include "flutter/fml/logging.h"
-#include "flutter/fml/macros.h"
-#include "third_party/skia/include/core/SkImage.h"
-#include "third_party/skia/include/core/SkPicture.h"
 
 namespace flow {
 
+template <typename ID>
 class RasterCacheKey {
  public:
-  RasterCacheKey(const SkPicture& picture, const SkMatrix& ctm)
-      : picture_id_(picture.uniqueID()), matrix_(ctm) {
+  RasterCacheKey(ID id, const SkMatrix& ctm) : id_(id), matrix_(ctm) {
     matrix_[SkMatrix::kMTransX] = SkScalarFraction(ctm.getTranslateX());
     matrix_[SkMatrix::kMTransY] = SkScalarFraction(ctm.getTranslateY());
 #ifndef SUPPORT_FRACTIONAL_TRANSLATION
@@ -25,19 +22,19 @@ class RasterCacheKey {
 #endif
   }
 
-  uint32_t picture_id() const { return picture_id_; }
+  ID id() const { return id_; }
   const SkMatrix& matrix() const { return matrix_; }
 
   struct Hash {
-    std::size_t operator()(RasterCacheKey const& key) const {
-      return key.picture_id_;
+    uint32_t operator()(RasterCacheKey const& key) const {
+      return std::hash<ID>()(key.id_);
     }
   };
 
   struct Equal {
     constexpr bool operator()(const RasterCacheKey& lhs,
                               const RasterCacheKey& rhs) const {
-      return lhs.picture_id_ == rhs.picture_id_ && lhs.matrix_ == rhs.matrix_;
+      return lhs.id_ == rhs.id_ && lhs.matrix_ == rhs.matrix_;
     }
   };
 
@@ -45,7 +42,7 @@ class RasterCacheKey {
   using Map = std::unordered_map<RasterCacheKey, Value, Hash, Equal>;
 
  private:
-  uint32_t picture_id_;
+  ID id_;
 
   // ctm where only fractional (0-1) translations are preserved:
   //   matrix_ = ctm;
@@ -53,6 +50,13 @@ class RasterCacheKey {
   //   matrix_[SkMatrix::kMTransY] = SkScalarFraction(ctm.getTranslateY());
   SkMatrix matrix_;
 };
+
+// The ID is the uint32_t picture uniqueID
+using PictureRasterCacheKey = RasterCacheKey<uint32_t>;
+
+class Layer;
+
+using LayerRasterCacheKey = RasterCacheKey<Layer*>;
 
 }  // namespace flow
 

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,8 @@
 #include "flutter/shell/platform/darwin/ios/framework/Source/vsync_waiter_ios.h"
 #include "third_party/skia/include/core/SkSurface.h"
 #include "third_party/skia/include/gpu/GrBackendSurface.h"
-#include "third_party/skia/include/gpu/GrTexture.h"
-#include "third_party/skia/include/gpu/GrTypes.h"
 
-namespace shell {
+namespace flutter {
 
 IOSExternalTextureGL::IOSExternalTextureGL(int64_t textureId,
                                            NSObject<FlutterTexture>* externalTexture)
@@ -76,4 +74,4 @@ void IOSExternalTextureGL::OnGrContextDestroyed() {
 
 void IOSExternalTextureGL::MarkNewFrameAvailable() {}
 
-}  // namespace shell
+}  // namespace flutter

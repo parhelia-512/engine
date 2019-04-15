@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,7 +14,7 @@ namespace tonic {
 class DartLibraryNatives;
 }  // namespace tonic
 
-namespace blink {
+namespace flutter {
 
 class CanvasImage final : public RefCountedDartWrappable<CanvasImage> {
   DEFINE_WRAPPERTYPEINFO();
@@ -39,7 +39,7 @@ class CanvasImage final : public RefCountedDartWrappable<CanvasImage> {
     image_ = std::move(image);
   }
 
-  virtual size_t GetAllocationSize() override;
+  size_t GetAllocationSize() override;
 
   static void RegisterNatives(tonic::DartLibraryNatives* natives);
 
@@ -49,6 +49,6 @@ class CanvasImage final : public RefCountedDartWrappable<CanvasImage> {
   flow::SkiaGPUObject<SkImage> image_;
 };
 
-}  // namespace blink
+}  // namespace flutter
 
 #endif  // FLUTTER_LIB_UI_PAINTING_IMAGE_H_

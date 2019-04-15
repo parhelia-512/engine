@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@
 #include "third_party/tonic/dart_binding_macros.h"
 #include "third_party/tonic/dart_library_natives.h"
 
-namespace blink {
+namespace flutter {
 
 static void SemanticsUpdateBuilder_constructor(Dart_NativeArguments args) {
   DartCallConstructor(&SemanticsUpdateBuilder::create, args);
@@ -41,6 +41,7 @@ void SemanticsUpdateBuilder::updateNode(
     int actions,
     int textSelectionBase,
     int textSelectionExtent,
+    int platformViewId,
     int scrollChildren,
     int scrollIndex,
     double scrollPosition,
@@ -50,6 +51,8 @@ void SemanticsUpdateBuilder::updateNode(
     double top,
     double right,
     double bottom,
+    double elevation,
+    double thickness,
     std::string label,
     std::string hint,
     std::string value,
@@ -66,12 +69,15 @@ void SemanticsUpdateBuilder::updateNode(
   node.actions = actions;
   node.textSelectionBase = textSelectionBase;
   node.textSelectionExtent = textSelectionExtent;
+  node.platformViewId = platformViewId;
   node.scrollChildren = scrollChildren;
   node.scrollIndex = scrollIndex;
   node.scrollPosition = scrollPosition;
   node.scrollExtentMax = scrollExtentMax;
   node.scrollExtentMin = scrollExtentMin;
   node.rect = SkRect::MakeLTRB(left, top, right, bottom);
+  node.elevation = elevation;
+  node.thickness = thickness;
   node.label = label;
   node.hint = hint;
   node.value = value;
@@ -108,4 +114,4 @@ fml::RefPtr<SemanticsUpdate> SemanticsUpdateBuilder::build() {
   return SemanticsUpdate::create(std::move(nodes_), std::move(actions_));
 }
 
-}  // namespace blink
+}  // namespace flutter

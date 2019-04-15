@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,9 +6,13 @@
 
 #include <string.h>
 
-namespace blink {
+namespace flutter {
+
+constexpr int32_t kMinPlatformViewId = -1;
 
 SemanticsNode::SemanticsNode() = default;
+
+SemanticsNode::SemanticsNode(const SemanticsNode& other) = default;
 
 SemanticsNode::~SemanticsNode() = default;
 
@@ -20,4 +24,8 @@ bool SemanticsNode::HasFlag(SemanticsFlags flag) {
   return (flags & static_cast<int32_t>(flag)) != 0;
 }
 
-}  // namespace blink
+bool SemanticsNode::IsPlatformViewNode() const {
+  return platformViewId > kMinPlatformViewId;
+}
+
+}  // namespace flutter

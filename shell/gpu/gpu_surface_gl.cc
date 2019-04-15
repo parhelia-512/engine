@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,12 +7,11 @@
 #include "flutter/fml/arraysize.h"
 #include "flutter/fml/logging.h"
 #include "flutter/fml/trace_event.h"
+#include "flutter/shell/common/persistent_cache.h"
 #include "third_party/skia/include/core/SkColorFilter.h"
 #include "third_party/skia/include/core/SkSurface.h"
 #include "third_party/skia/include/gpu/GrBackendSurface.h"
 #include "third_party/skia/include/gpu/GrContextOptions.h"
-#include "third_party/skia/include/gpu/gl/GrGLAssembleInterface.h"
-#include "third_party/skia/include/gpu/gl/GrGLInterface.h"
 
 // These are common defines present on all OpenGL headers. However, we don't
 // want to perform GL header reasolution on each platform we support. So just
@@ -22,11 +21,7 @@
 #define GPU_GL_RGBA4 0x8056
 #define GPU_GL_RGB565 0x8D62
 
-#ifdef ERROR
-#undef ERROR
-#endif
-
-namespace shell {
+namespace flutter {
 
 // Default maximum number of budgeted resources in the cache.
 static const int kGrCacheMaxCount = 8192;
@@ -43,27 +38,21 @@ GPUSurfaceGL::GPUSurfaceGL(GPUSurfaceGLDelegate* delegate)
     return;
   }
 
-  proc_resolver_ = delegate_->GetGLProcResolver();
-
   GrContextOptions options;
+
+  options.fPersistentCache = PersistentCache::GetCacheForProcess();
+
   options.fAvoidStencilBuffers = true;
 
   // To get video playback on the widest range of devices, we limit Skia to
   // ES2 shading language when the ES3 external image extension is missing.
   options.fPreferExternalImagesOverES3 = true;
 
-  auto interface =
-      proc_resolver_
-          ? GrGLMakeAssembledGLESInterface(
-                this /* context */,
-                [](void* context, const char gl_proc_name[]) -> GrGLFuncPtr {
-                  return reinterpret_cast<GrGLFuncPtr>(
-                      reinterpret_cast<GPUSurfaceGL*>(context)->proc_resolver_(
-                          gl_proc_name));
-                })
-          : GrGLMakeNativeInterface();
+  // TODO(goderbauer): remove option when skbug.com/7523 is fixed.
+  // A similar work-around is also used in shell/common/io_manager.cc.
+  options.fDisableGpuYUVConversion = true;
 
-  auto context = GrContext::MakeGL(interface, options);
+  auto context = GrContext::MakeGL(delegate_->GetGLInterface(), options);
 
   if (context == nullptr) {
     FML_LOG(ERROR) << "Failed to setup Skia Gr context.";
@@ -77,6 +66,22 @@ GPUSurfaceGL::GPUSurfaceGL(GPUSurfaceGLDelegate* delegate)
   delegate_->GLContextClearCurrent();
 
   valid_ = true;
+  context_owner_ = true;
+}
+
+GPUSurfaceGL::GPUSurfaceGL(sk_sp<GrContext> gr_context,
+                           GPUSurfaceGLDelegate* delegate)
+    : delegate_(delegate), context_(gr_context), weak_factory_(this) {
+  if (!delegate_->GLContextMakeCurrent()) {
+    FML_LOG(ERROR)
+        << "Could not make the context current to setup the gr context.";
+    return;
+  }
+
+  delegate_->GLContextClearCurrent();
+
+  valid_ = true;
+  context_owner_ = false;
 }
 
 GPUSurfaceGL::~GPUSurfaceGL() {
@@ -91,13 +96,15 @@ GPUSurfaceGL::~GPUSurfaceGL() {
   }
 
   onscreen_surface_ = nullptr;
-  context_->releaseResourcesAndAbandonContext();
+  if (context_owner_) {
+    context_->releaseResourcesAndAbandonContext();
+  }
   context_ = nullptr;
 
   delegate_->GLContextClearCurrent();
 }
 
-// |shell::Surface|
+// |Surface|
 bool GPUSurfaceGL::IsValid() {
   return valid_;
 }
@@ -132,7 +139,7 @@ static sk_sp<SkSurface> WrapOnscreenSurface(GrContext* context,
                                       framebuffer_info  // framebuffer info
   );
 
-  sk_sp<SkColorSpace> colorspace = nullptr;
+  sk_sp<SkColorSpace> colorspace = SkColorSpace::MakeSRGB();
 
   SkSurfaceProps surface_props(
       SkSurfaceProps::InitType::kLegacyFontHost_InitType);
@@ -149,8 +156,8 @@ static sk_sp<SkSurface> WrapOnscreenSurface(GrContext* context,
 
 static sk_sp<SkSurface> CreateOffscreenSurface(GrContext* context,
                                                const SkISize& size) {
-  const SkImageInfo image_info =
-      SkImageInfo::MakeN32(size.fWidth, size.fHeight, kOpaque_SkAlphaType);
+  const SkImageInfo image_info = SkImageInfo::MakeN32(
+      size.fWidth, size.fHeight, kOpaque_SkAlphaType, SkColorSpace::MakeSRGB());
 
   const SkSurfaceProps surface_props(
       SkSurfaceProps::InitType::kLegacyFontHost_InitType);
@@ -209,12 +216,12 @@ bool GPUSurfaceGL::CreateOrUpdateSurfaces(const SkISize& size) {
   return true;
 }
 
-// |shell::Surface|
+// |Surface|
 SkMatrix GPUSurfaceGL::GetRootTransformation() const {
   return delegate_->GLContextSurfaceTransformation();
 }
 
-// |shell::Surface|
+// |Surface|
 std::unique_ptr<SurfaceFrame> GPUSurfaceGL::AcquireFrame(const SkISize& size) {
   if (delegate_ == nullptr) {
     return nullptr;
@@ -254,8 +261,10 @@ bool GPUSurfaceGL::PresentSurface(SkCanvas* canvas) {
   if (offscreen_surface_ != nullptr) {
     TRACE_EVENT0("flutter", "CopyTextureOnscreen");
     SkPaint paint;
-    onscreen_surface_->getCanvas()->drawImage(
-        offscreen_surface_->makeImageSnapshot(), 0, 0, &paint);
+    SkCanvas* onscreen_canvas = onscreen_surface_->getCanvas();
+    onscreen_canvas->clear(SK_ColorTRANSPARENT);
+    onscreen_canvas->drawImage(offscreen_surface_->makeImageSnapshot(), 0, 0,
+                               &paint);
   }
 
   {
@@ -305,9 +314,19 @@ sk_sp<SkSurface> GPUSurfaceGL::AcquireRenderSurface(
   return offscreen_surface_ != nullptr ? offscreen_surface_ : onscreen_surface_;
 }
 
-// |shell::Surface|
+// |Surface|
 GrContext* GPUSurfaceGL::GetContext() {
   return context_.get();
 }
 
-}  // namespace shell
+// |Surface|
+flow::ExternalViewEmbedder* GPUSurfaceGL::GetExternalViewEmbedder() {
+  return delegate_->GetExternalViewEmbedder();
+}
+
+// |Surface|
+bool GPUSurfaceGL::MakeRenderContextCurrent() {
+  return delegate_->GLContextMakeCurrent();
+}
+
+}  // namespace flutter

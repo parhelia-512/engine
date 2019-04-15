@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@ namespace tonic {
 class DartLibraryNatives;
 }  // namespace tonic
 
-namespace blink {
+namespace flutter {
 
 class Paragraph : public RefCountedDartWrappable<Paragraph> {
   DEFINE_WRAPPERTYPEINFO();
@@ -42,11 +42,14 @@ class Paragraph : public RefCountedDartWrappable<Paragraph> {
   void layout(double width);
   void paint(Canvas* canvas, double x, double y);
 
-  std::vector<TextBox> getRectsForRange(unsigned start, unsigned end);
+  std::vector<TextBox> getRectsForRange(unsigned start,
+                                        unsigned end,
+                                        unsigned boxHeightStyle,
+                                        unsigned boxWidthStyle);
   Dart_Handle getPositionForOffset(double dx, double dy);
   Dart_Handle getWordBoundary(unsigned offset);
 
-  virtual size_t GetAllocationSize() override;
+  size_t GetAllocationSize() override;
 
   static void RegisterNatives(tonic::DartLibraryNatives* natives);
 
@@ -56,6 +59,6 @@ class Paragraph : public RefCountedDartWrappable<Paragraph> {
   explicit Paragraph(std::unique_ptr<txt::Paragraph> paragraph);
 };
 
-}  // namespace blink
+}  // namespace flutter
 
 #endif  // FLUTTER_LIB_UI_TEXT_PARAGRAPH_H_

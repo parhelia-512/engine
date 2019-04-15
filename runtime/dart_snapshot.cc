@@ -1,4 +1,4 @@
-// Copyright 2017 The Flutter Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@
 #include "flutter/runtime/dart_snapshot_buffer.h"
 #include "flutter/runtime/dart_vm.h"
 
-namespace blink {
+namespace flutter {
 
 const char* DartSnapshot::kVMDataSymbol = "kDartVmSnapshotData";
 const char* DartSnapshot::kVMInstructionsSymbol = "kDartVmSnapshotInstructions";
@@ -41,9 +41,15 @@ static const char* kIsolateInstructionsSymbolSo =
     SYMBOL_PREFIX "kDartIsolateSnapshotInstructions";
 
 std::unique_ptr<DartSnapshotBuffer> ResolveVMData(const Settings& settings) {
+  if (settings.vm_snapshot_data) {
+    return DartSnapshotBuffer::CreateWithMapping(settings.vm_snapshot_data());
+  }
+
   if (settings.vm_snapshot_data_path.size() > 0) {
     if (auto source = DartSnapshotBuffer::CreateWithContentsOfFile(
-            settings.vm_snapshot_data_path.c_str(), false /* executable */)) {
+            fml::OpenFile(settings.vm_snapshot_data_path.c_str(), false,
+                          fml::FilePermission::kRead),
+            {fml::FileMapping::Protection::kRead})) {
       return source;
     }
   }
@@ -64,9 +70,15 @@ std::unique_ptr<DartSnapshotBuffer> ResolveVMData(const Settings& settings) {
 
 std::unique_ptr<DartSnapshotBuffer> ResolveVMInstructions(
     const Settings& settings) {
+  if (settings.vm_snapshot_instr) {
+    return DartSnapshotBuffer::CreateWithMapping(settings.vm_snapshot_instr());
+  }
+
   if (settings.vm_snapshot_instr_path.size() > 0) {
     if (auto source = DartSnapshotBuffer::CreateWithContentsOfFile(
-            settings.vm_snapshot_instr_path.c_str(), true /* executable */)) {
+            fml::OpenFile(settings.vm_snapshot_instr_path.c_str(), false,
+                          fml::FilePermission::kRead),
+            {fml::FileMapping::Protection::kExecute})) {
       return source;
     }
   }
@@ -87,10 +99,16 @@ std::unique_ptr<DartSnapshotBuffer> ResolveVMInstructions(
 
 std::unique_ptr<DartSnapshotBuffer> ResolveIsolateData(
     const Settings& settings) {
+  if (settings.isolate_snapshot_data) {
+    return DartSnapshotBuffer::CreateWithMapping(
+        settings.isolate_snapshot_data());
+  }
+
   if (settings.isolate_snapshot_data_path.size() > 0) {
     if (auto source = DartSnapshotBuffer::CreateWithContentsOfFile(
-            settings.isolate_snapshot_data_path.c_str(),
-            false /* executable */)) {
+            fml::OpenFile(settings.isolate_snapshot_data_path.c_str(), false,
+                          fml::FilePermission::kRead),
+            {fml::FileMapping::Protection::kRead})) {
       return source;
     }
   }
@@ -111,10 +129,16 @@ std::unique_ptr<DartSnapshotBuffer> ResolveIsolateData(
 
 std::unique_ptr<DartSnapshotBuffer> ResolveIsolateInstructions(
     const Settings& settings) {
+  if (settings.isolate_snapshot_data) {
+    return DartSnapshotBuffer::CreateWithMapping(
+        settings.isolate_snapshot_instr());
+  }
+
   if (settings.isolate_snapshot_instr_path.size() > 0) {
     if (auto source = DartSnapshotBuffer::CreateWithContentsOfFile(
-            settings.isolate_snapshot_instr_path.c_str(),
-            true /* executable */)) {
+            fml::OpenFile(settings.isolate_snapshot_instr_path.c_str(), false,
+                          fml::FilePermission::kRead),
+            {fml::FileMapping::Protection::kExecute})) {
       return source;
     }
   }
@@ -208,4 +232,4 @@ const uint8_t* DartSnapshot::GetInstructionsIfPresent() const {
   return instructions_ ? instructions_->GetSnapshotPointer() : nullptr;
 }
 
-}  // namespace blink
+}  // namespace flutter

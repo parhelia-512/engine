@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,7 +32,10 @@ import io.flutter.view.FlutterMain;
 import io.flutter.view.FlutterNativeView;
 import io.flutter.view.FlutterRunArguments;
 import io.flutter.view.FlutterView;
+import io.flutter.view.ResourceUpdater;
+import org.json.JSONObject;
 
+import java.io.File;
 import java.util.ArrayList;
 
 /**
@@ -166,14 +169,10 @@ public final class FlutterActivityDelegate
         if (loadIntent(activity.getIntent())) {
             return;
         }
-        if (!flutterView.getFlutterNativeView().isApplicationRunning()) {
-          String appBundlePath = FlutterMain.findAppBundlePath(activity.getApplicationContext());
-          if (appBundlePath != null) {
-            FlutterRunArguments arguments = new FlutterRunArguments();
-            arguments.bundlePath = appBundlePath;
-            arguments.entrypoint = "main";
-            flutterView.runFromBundle(arguments);
-          }
+
+        String appBundlePath = FlutterMain.findAppBundlePath(activity.getApplicationContext());
+        if (appBundlePath != null) {
+            runBundle(appBundlePath);
         }
     }
 
@@ -214,6 +213,7 @@ public final class FlutterActivityDelegate
     @Override
     public void onResume() {
         Application app = (Application) activity.getApplicationContext();
+        FlutterMain.onResume(app);
         if (app instanceof FlutterApplication) {
             FlutterApplication flutterApp = (FlutterApplication) app;
             flutterApp.setCurrentActivity(activity);
@@ -283,19 +283,21 @@ public final class FlutterActivityDelegate
     }
 
     @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-    }
+    public void onConfigurationChanged(Configuration newConfig) {}
 
     private static String[] getArgsFromIntent(Intent intent) {
         // Before adding more entries to this list, consider that arbitrary
         // Android applications can generate intents with extra data and that
         // there are many security-sensitive args in the binary.
-        ArrayList<String> args = new ArrayList<String>();
+        ArrayList<String> args = new ArrayList<>();
         if (intent.getBooleanExtra("trace-startup", false)) {
             args.add("--trace-startup");
         }
         if (intent.getBooleanExtra("start-paused", false)) {
             args.add("--start-paused");
+        }
+        if (intent.getBooleanExtra("enable-service-auth-codes", false)) {
+            args.add("--enable-service-auth-codes");
         }
         if (intent.getBooleanExtra("use-test-fonts", false)) {
             args.add("--use-test-fonts");
@@ -311,6 +313,12 @@ public final class FlutterActivityDelegate
         }
         if (intent.getBooleanExtra("trace-skia", false)) {
             args.add("--trace-skia");
+        }
+        if (intent.getBooleanExtra("trace-systrace", false)) {
+            args.add("--trace-systrace");
+        }
+        if (intent.getBooleanExtra("dump-skp-on-shader-compilation", false)) {
+            args.add("--dump-skp-on-shader-compilation");
         }
         if (intent.getBooleanExtra("verbose-logging", false)) {
             args.add("--verbose-logging");
@@ -328,23 +336,37 @@ public final class FlutterActivityDelegate
             String route = intent.getStringExtra("route");
             String appBundlePath = intent.getDataString();
             if (appBundlePath == null) {
-                // Fall back to the installation path if no bundle path
-                // was specified.
+                // Fall back to the installation path if no bundle path was specified.
                 appBundlePath = FlutterMain.findAppBundlePath(activity.getApplicationContext());
             }
             if (route != null) {
                 flutterView.setInitialRoute(route);
             }
-            if (!flutterView.getFlutterNativeView().isApplicationRunning()) {
-              FlutterRunArguments args = new FlutterRunArguments();
-              args.bundlePath = appBundlePath;
-              args.entrypoint = "main";
-              flutterView.runFromBundle(args);
-            }
+
+            runBundle(appBundlePath);
             return true;
         }
 
         return false;
+    }
+
+    private void runBundle(String appBundlePath) {
+        if (!flutterView.getFlutterNativeView().isApplicationRunning()) {
+            FlutterRunArguments args = new FlutterRunArguments();
+            ArrayList<String> bundlePaths = new ArrayList<>();
+            ResourceUpdater resourceUpdater = FlutterMain.getResourceUpdater();
+            if (resourceUpdater != null) {
+                File patchFile = resourceUpdater.getInstalledPatch();
+                JSONObject manifest = resourceUpdater.readManifest(patchFile);
+                if (resourceUpdater.validateManifest(manifest)) {
+                    bundlePaths.add(patchFile.getPath());
+                }
+            }
+            bundlePaths.add(appBundlePath);
+            args.bundlePaths = bundlePaths.toArray(new String[0]);
+            args.entrypoint = "main";
+            flutterView.runFromBundle(args);
+        }
     }
 
     /**
@@ -382,7 +404,7 @@ public final class FlutterActivityDelegate
         if (!activity.getTheme().resolveAttribute(
             android.R.attr.windowBackground,
             typedValue,
-            true)) {;
+            true)) {
             return null;
         }
         if (typedValue.resourceId == 0) {

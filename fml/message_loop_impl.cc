@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,10 +46,6 @@ MessageLoopImpl::~MessageLoopImpl() = default;
 void MessageLoopImpl::PostTask(fml::closure task, fml::TimePoint target_time) {
   FML_DCHECK(task != nullptr);
   RegisterTask(task, target_time);
-}
-
-void MessageLoopImpl::RunExpiredTasksNow() {
-  RunExpiredTasks();
 }
 
 void MessageLoopImpl::AddTaskObserver(intptr_t key, fml::closure callback) {
@@ -112,8 +108,8 @@ void MessageLoopImpl::RegisterTask(fml::closure task,
   WakeUp(delayed_tasks_.top().target_time);
 }
 
-void MessageLoopImpl::RunExpiredTasks() {
-  TRACE_EVENT0("fml", "MessageLoop::RunExpiredTasks");
+void MessageLoopImpl::FlushTasks(FlushType type) {
+  TRACE_EVENT0("fml", "MessageLoop::FlushTasks");
   std::vector<fml::closure> invocations;
 
   {
@@ -131,6 +127,9 @@ void MessageLoopImpl::RunExpiredTasks() {
       }
       invocations.emplace_back(std::move(top.task));
       delayed_tasks_.pop();
+      if (type == FlushType::kSingle) {
+        break;
+      }
     }
 
     WakeUp(delayed_tasks_.empty() ? fml::TimePoint::Max()
@@ -144,5 +143,22 @@ void MessageLoopImpl::RunExpiredTasks() {
     }
   }
 }
+
+void MessageLoopImpl::RunExpiredTasksNow() {
+  FlushTasks(FlushType::kAll);
+}
+
+void MessageLoopImpl::RunSingleExpiredTaskNow() {
+  FlushTasks(FlushType::kSingle);
+}
+
+MessageLoopImpl::DelayedTask::DelayedTask(size_t p_order,
+                                          fml::closure p_task,
+                                          fml::TimePoint p_target_time)
+    : order(p_order), task(std::move(p_task)), target_time(p_target_time) {}
+
+MessageLoopImpl::DelayedTask::DelayedTask(const DelayedTask& other) = default;
+
+MessageLoopImpl::DelayedTask::~DelayedTask() = default;
 
 }  // namespace fml

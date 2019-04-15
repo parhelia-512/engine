@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,8 @@
 
 namespace flow {
 
+// Be careful that SkMatrix's default constructor doesn't initialize the matrix
+// at all. Hence |set_transform| must be called with an initialized SkMatrix.
 class TransformLayer : public ContainerLayer {
  public:
   TransformLayer();

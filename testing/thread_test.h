@@ -1,4 +1,4 @@
-// Copyright 2017 The Flutter Authors. All rights reserved.
+// Copyright 2013 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,8 +22,10 @@ class ThreadTest : public Test {
   fml::RefPtr<fml::TaskRunner> GetThreadTaskRunner();
 
  protected:
+  // |testing::Test|
   void SetUp() override;
 
+  // |testing::Test|
   void TearDown() override;
 
  private:
